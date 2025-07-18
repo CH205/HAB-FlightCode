@@ -63,7 +63,7 @@ void readAndLog() {
   float temp     = bmp.readTemperature();
   float pressure = bmp.readPressure() / 100.0;
   float altitude = 44330.0 * (1.0 - pow(pressure/QNH, 0.1903));const float triggerAlt = 100.0;
-const float resetAlt   = 20.0;
+const float resetAlt   = 90.0;
 
 if (altitude >= triggerAlt && !solenoidFired) {
   solenoidFired = true;
