@@ -62,7 +62,19 @@ void logEvent(const String &evt) {
 void readAndLog() {
   float temp     = bmp.readTemperature();
   float pressure = bmp.readPressure() / 100.0;
-  float altitude = 44330.0 * (1.0 - pow(pressure/QNH, 0.1903));
+  float altitude = 44330.0 * (1.0 - pow(pressure/QNH, 0.1903));const float triggerAlt = 100.0;
+const float resetAlt   = 90.0;
+
+if (altitude >= triggerAlt && !solenoidFired) {
+  solenoidFired = true;
+  digitalWrite(SOLENOID_PIN, HIGH);
+  logEvent("SOLENOID ON");
+}
+else if (altitude < resetAlt && solenoidFired && !solenoidReset) {
+  solenoidReset = true;
+  digitalWrite(SOLENOID_PIN, LOW);
+  logEvent("SOLENOID OFF");
+}
   sensors.requestTemperatures();
   float extTemp = sensors.getTempCByIndex(0);
   if (extTemp == DEVICE_DISCONNECTED_C) extTemp = -999.0;
