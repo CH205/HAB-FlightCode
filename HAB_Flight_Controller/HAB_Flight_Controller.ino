@@ -35,7 +35,7 @@
 
 // ---------------- Settings (unchanged) ----------------
 const float QNH = 1013.25;                   // hPa
-const float ALTITUDE_THRESHOLD = -100.0;      // meters (your test value)
+const float ALTITUDE_THRESHOLD = -100.0;      // meters (test value)
 const unsigned long SENSOR_INTERVAL = 1000;  // ms
 const unsigned long RTTY_INTERVAL   = 2000;  // ms
 const unsigned long BLINK_INTERVAL  = 500;   // ms
