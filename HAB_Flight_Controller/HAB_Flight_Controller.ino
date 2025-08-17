@@ -9,8 +9,8 @@
   - Structure kept modular & easy to read.
   
   Credits:
-  Script based on user’s proven flight code, enhanced and made UKHAS-compliant with 
-  checksum handling, GPS airborne mode, and clean modular structure. Compiled with 
+  Script based on the user’s [Dr Colin Hindmarch] proven flight code, enhanced and made UKHAS-compliant with 
+  checksum handling, GPS airborne mode, and a clean modular structure. Compiled with 
   assistance from ChatGPT (OpenAI).
 
 */
