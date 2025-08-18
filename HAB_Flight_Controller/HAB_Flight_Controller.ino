@@ -1,7 +1,7 @@
 
 /*
   High-Altitude Balloon — Integrated Baseline (robust + annotated)
-  - Keeps your working 50-baud 7N2 RTTY (bit-banged on RTTY_PIN)
+  - Keeps your working 50-baud 7_N_2 RTTY (bit-banged on RTTY_PIN)
   - RESTORES u-blox “airborne” (high-altitude) UBX patch (enableAirborneMode())
   - Serial (semicolon) + SD (CSV) logging unchanged
   - RTTY payload now mirrors SD log’s MOS field (MOS_ON/MOS_OFF)  // *** CHANGE
