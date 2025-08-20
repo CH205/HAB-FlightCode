@@ -14,7 +14,7 @@ The system gathers sensor data, transmits telemetry over RTTY, and logs informat
 - SD card logging (independent from RTTY).  
 
 ## 🛠️ Hardware
-- Arduino Uno R4 Minima  
+- Arduino Nano R4 
 - u-blox MAX-M10S GPS (via Uptronics breakout board)
 - Radiometrix NTX2B-FA 434.300 Mz  
 - BMP180 pressure sensor  
