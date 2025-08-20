@@ -37,7 +37,7 @@ const int ONE_WIRE_BUS = 4;  // DS18B20 temp sensor
 // -----------------------------
 // Constants
 // -----------------------------
-const float ALTITUDE_THRESHOLD = -100.0;   // meters (yo)
+const float ALTITUDE_THRESHOLD = -100.0;   // meters (change on the day)
 
 // RTTY parameters
 const int RTTY_BAUD = 50;
