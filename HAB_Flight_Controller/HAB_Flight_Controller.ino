@@ -197,28 +197,28 @@ void sendRTTY(String msg) {
   sendByte('\n'); // end of sentence
 }
 
+// --- RTTY transmit one character with LED trill feedback ---
 void sendByte(char c) {
+  // Start bit (always LOW)
   digitalWrite(RTTY_PIN, LOW);
-  digitalWrite(LED_RTTY, HIGH);
-  delay(BIT_PERIOD);   // Start bit
-  digitalWrite(LED_RTTY, LOW);
+  delay(BIT_PERIOD);
 
-  for (int i = 0; i < 7; i++) { // 7N2 encoding
-    if (c & (1 << i)) {
-      digitalWrite(RTTY_PIN, HIGH);
-    } else {
-      digitalWrite(RTTY_PIN, LOW);
-    }
-    digitalWrite(LED_RTTY, HIGH);
+  // Data bits (7-bit ASCII, LSB first)
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(RTTY_PIN, (c & (1 << i)) ? HIGH : LOW);
     delay(BIT_PERIOD);
-    digitalWrite(LED_RTTY, LOW);
   }
 
+  // Stop bits (2 stop bits HIGH)
   digitalWrite(RTTY_PIN, HIGH);
+  delay(BIT_PERIOD * 2);
+
+  // LED "trill" pulse per character
   digitalWrite(LED_RTTY, HIGH);
-  delay(BIT_PERIOD * 2);  // 2 stop bits
+  delay(20);              // short visible blink
   digitalWrite(LED_RTTY, LOW);
 }
+
 
 uint16_t crc16(const char *s) {
   uint16_t crc = 0xFFFF;
