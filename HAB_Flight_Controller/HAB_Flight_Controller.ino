@@ -1,20 +1,17 @@
+/*feat: establish robust failsafe Nano flight code (baseline release).
 
-/*
-  High-Altitude Balloon — Integrated Baseline (robust + annotated)
-  - Keeps your working 50-baud 7_N_2 RTTY (bit-banged on RTTY_PIN)
-  - RESTORES u-blox “airborne” (high-altitude) UBX patch (enableAirborneMode())
-  - Serial (semicolon) + SD (CSV) logging unchanged
-  - RTTY payload now mirrors SD log’s MOS field (MOS_ON/MOS_OFF)  // *** CHANGE
-  - RTTY LED (pin 3) gives a short visible pulse for EACH CHARACTER  // *** CHANGE
-  - Adds ham-style NMEA checksum *XX at end of the $RTTY sentence    // *** CHANGE
-  - Structure kept modular & easy to read.
-  
-  Credits:
-  Script based on user’s proven flight code, enhanced and made UKHAS-compliant with 
-  checksum handling, GPS airborne mode, and clean modular structure. Compiled with 
-  assistance from ChatGPT (OpenAI).
+This commit marks the first robust baseline of the Nano high-altitude balloon flight code. It
+has been ground-tested for stability and decoding reliability. Key features include:
 
-*/
+- GPS (u-blox MAX-M10S) running on hardware serial with airborne flight mode enabled
+- Clean, decodable RTTY telemetry with LED indicator pulse
+- GPS fix LED (blinking until fix, solid when fixed)
+- MOSFET altitude-triggered logic with logging of ON/OFF events
+- Reliable SD card logging to DATA00.CSV (with simplified checksum handling)
+- Telemetry continues even without SD card present (failsafe)
+
+Acknowledgement: Script structure and integration support provided by ChatGPT (OpenAI).*/
+
 
 #include <Wire.h>
 #include <SPI.h>
@@ -24,41 +21,34 @@
 #include <DallasTemperature.h>
 #include <TinyGPSPlus.h>
 
-// -----------------------------
-// Pin Assignments
-// -----------------------------
-const int SD_CS_PIN = 10;     // SD card chip select
-const int MOS_PIN   = 6;     // MOSFET control pin
-const int RTTY_PIN  = 9;     // RTTY output pin
-const int LED_RTTY  = 3;     // LED flashes with each RTTY bit
-const int LED_GPS   = 5;     // LED shows GPS fix status
-const int ONE_WIRE_BUS = 4;  // DS18B20 temp sensor
+// --- Pin Assignments ---
+#define MOS_PIN 6
+#define RTTY_PIN 9
+#define GPS_LED 5
+#define RTTY_LED 3
+#define ONE_WIRE_BUS 4
+#define SD_CS 10
 
-// -----------------------------
-// Constants
-// -----------------------------
-const float ALTITUDE_THRESHOLD = -100.0;   // meters (change on the day)
+// --- Constants ---
+const float ALTITUDE_THRESHOLD = -100.0;  // meters (change on the day)
+const int RTTY_BAUD = 50;                 // RTTY baud rate
 
-// RTTY parameters
-const int RTTY_BAUD = 50;
-const int BIT_PERIOD = 1000 / RTTY_BAUD; // ms per bit
-
-// -----------------------------
-// Globals
-// -----------------------------
-File logFile;
+// --- Globals ---
 Adafruit_BMP085 bmp;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 TinyGPSPlus gps;
+File logfile;
 
 bool MOSFired = false;
-unsigned long packetCounter = 0;
-unsigned long lastBlink = 0;
+unsigned long sentenceCounter = 0;
 
-// -----------------------------
-// Setup
-// -----------------------------
+// --- Forward declarations ---
+void rtty_txstring(const char *string);
+void rtty_txbyte(char c);
+void rtty_txbit(int bit);
+void sendGPSAirborneMode();
+
 void setup() {
   pinMode(MOS_PIN, OUTPUT);
   digitalWrite(MOS_PIN, LOW);
@@ -66,188 +56,173 @@ void setup() {
   pinMode(RTTY_PIN, OUTPUT);
   digitalWrite(RTTY_PIN, LOW);
 
-  pinMode(LED_RTTY, OUTPUT);
-  digitalWrite(LED_RTTY, LOW);
-
-  pinMode(LED_GPS, OUTPUT);
-  digitalWrite(LED_GPS, LOW);
+  pinMode(GPS_LED, OUTPUT);
+  pinMode(RTTY_LED, OUTPUT);
 
   Serial.begin(9600);
-  Serial1.begin(9600);  // GPS on Serial1 (UNO R4 Minima)
+  Serial1.begin(9600);
+  delay(250);
+  sendGPSAirborneMode();  // enable airborne <1g model
 
-  // Initialize BMP
   if (!bmp.begin()) {
-    Serial.println("BMP180 not detected!");
+    Serial.println("BMP180 not found!");
   }
 
-  // Initialize DS18B20
   sensors.begin();
 
-  // Initialize SD
-  if (!SD.begin(SD_CS_PIN)) {
-    Serial.println("SD card failed, logging disabled.");
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD card failed or not present.");
   } else {
-    logFile = SD.open("DATA00.CSV", FILE_WRITE);
-    if (logFile) {
-      logFile.println("Time;Latitude;Longitude;Sats;Altitude;Temp1;Temp2;Pressure;MOS");
-      logFile.flush();
+    logfile = SD.open("DATA00.CSV", FILE_WRITE);
+    if (logfile) {
+      logfile.println("Sentence,Count,Alt(m),TempC1,TempC2,Pres(hPa),Lat,Lon,Sats,MOSFET,Checksum");
+      logfile.flush();
     }
   }
-
-  // Send airborne mode command to GPS
-  sendGPSAirborneMode();
 }
 
-// -----------------------------
-// Main Loop
-// -----------------------------
 void loop() {
-  while (Serial1.available()) {
+  // Update GPS
+  while (Serial1.available() > 0) {
     gps.encode(Serial1.read());
   }
 
-  // Blink GPS LED when no fix, solid when fix
-  if (gps.location.isValid() && gps.satellites.value() > 0) {
-    digitalWrite(LED_GPS, HIGH);
+  // Blink GPS LED: blink if no fix, solid if fix
+  static unsigned long lastBlink = 0;
+  if (gps.location.isValid() && gps.altitude.isValid() && gps.satellites.value() > 0) {
+    digitalWrite(GPS_LED, HIGH);
   } else {
     if (millis() - lastBlink > 500) {
-      digitalWrite(LED_GPS, !digitalRead(LED_GPS));
+      digitalWrite(GPS_LED, !digitalRead(GPS_LED));
       lastBlink = millis();
     }
   }
 
-  static unsigned long lastLog = 0;
-  if (millis() - lastLog >= 1000) {
-    lastLog = millis();
+  // Read sensors
+  sensors.requestTemperatures();
+  float tempC1 = sensors.getTempCByIndex(0);
+  float tempC2 = bmp.readTemperature();
+  float pressure = bmp.readPressure() / 100.0;
+  float alt_m = bmp.readAltitude();
 
-    sensors.requestTemperatures();
-    float tempC = sensors.getTempCByIndex(0);
-    float tempC2 = bmp.readTemperature();
-    float pressure = bmp.readPressure() / 100.0;
-    float alt_m = bmp.readAltitude();
-
-    // MOSFET logic
-    String eventStr = MOSFired ? "MOS_ON" : "MOS_OFF";
-    if (alt_m >= ALTITUDE_THRESHOLD) {
-      if (!MOSFired) {
-        digitalWrite(MOS_PIN, HIGH);
-        MOSFired = true;
-        eventStr = "MOS_ON";
-      }
-    } else {
-      if (MOSFired) {
-        digitalWrite(MOS_PIN, LOW);
-        MOSFired = false;
-        eventStr = "MOS_OFF";
-      }
+  // MOSFET logic
+  String eventStr = MOSFired ? "MOS_ON" : "MOS_OFF";
+  if (alt_m >= ALTITUDE_THRESHOLD) {
+    if (!MOSFired) {
+      digitalWrite(MOS_PIN, HIGH);
+      MOSFired = true;
+      eventStr = "MOS_ON";
     }
-
-    // Build log line for Serial + SD
-    String logLine = "";
-    logLine += gps.time.hour(); logLine += ":";
-    logLine += gps.time.minute(); logLine += ":";
-    logLine += gps.time.second(); logLine += ";";
-    logLine += String(gps.location.lat(), 6); logLine += ";";
-    logLine += String(gps.location.lng(), 6); logLine += ";";
-    logLine += gps.satellites.value(); logLine += ";";
-    logLine += String(alt_m, 2); logLine += ";";
-    logLine += String(tempC, 2); logLine += ";";
-    logLine += String(tempC2, 2); logLine += ";";
-    logLine += String(pressure, 2); logLine += ";";
-    logLine += eventStr;
-
-    Serial.println(logLine);
-    if (logFile) {
-      logFile.println(logLine);
-      logFile.flush();
+  } else {
+    if (MOSFired) {
+      digitalWrite(MOS_PIN, LOW);
+      MOSFired = false;
+      eventStr = "MOS_OFF";
     }
+  }
 
-    // Build HAB RTTY sentence (without temps)
-    String sentence = "$$HAB1,";
-    sentence += String(packetCounter++);
-    sentence += ",";
-    sentence += String((int)alt_m);
-    sentence += ",";
-    sentence += String(gps.location.lat(), 6);
-    sentence += ",";
-    sentence += String(gps.location.lng(), 6);
-    sentence += ",";
-    sentence += gps.satellites.value();
-    sentence += ",";
-    sentence += eventStr;
+  // Build telemetry sentence
+  char sentence[180];
+  snprintf(sentence, sizeof(sentence),
+           "$$HAB1,%lu,%.1f,%.1f,%.1f,%.1f,%.6f,%.6f,%d,%s",
+           sentenceCounter++,
+           alt_m,
+           tempC1,
+           tempC2,
+           pressure,
+           gps.location.isValid() ? gps.location.lat() : 0.0,
+           gps.location.isValid() ? gps.location.lng() : 0.0,
+           gps.satellites.value(),
+           eventStr.c_str());
 
-    // Append checksum
-    uint16_t checksum = crc16(sentence.c_str() + 2);
-    char buf[8];
-    sprintf(buf, "*%02X", checksum & 0xFF);
-    sentence += buf;
+  // Add checksum
+  unsigned char checksum = 0;
+  for (size_t i = 2; i < strlen(sentence); i++) {
+    checksum ^= (unsigned char)sentence[i];
+  }
+  char finalSentence[200];
+  snprintf(finalSentence, sizeof(finalSentence), "%s*%02X", sentence, checksum);
 
-    // Send via RTTY
-    sendRTTY(sentence);
+  // Print to Serial
+  Serial.println(finalSentence);
+
+  // Write to SD card (CSV-friendly)
+  if (logfile) {
+    logfile.print("$$HAB1,");
+    logfile.print(sentenceCounter - 1);
+    logfile.print(",");
+    logfile.print(alt_m, 1);
+    logfile.print(",");
+    logfile.print(tempC1, 1);
+    logfile.print(",");
+    logfile.print(tempC2, 1);
+    logfile.print(",");
+    logfile.print(pressure, 1);
+    logfile.print(",");
+    logfile.print(gps.location.isValid() ? gps.location.lat() : 0.0, 6);
+    logfile.print(",");
+    logfile.print(gps.location.isValid() ? gps.location.lng() : 0.0, 6);
+    logfile.print(",");
+    logfile.print(gps.satellites.value());
+    logfile.print(",");
+    logfile.print(eventStr);
+    logfile.print(",");//replased line
+    //logfile.println(checksum, HEX);
+
+    logfile.flush();
+  }
+
+  // Transmit RTTY
+  rtty_txstring(finalSentence);
+  rtty_txbyte('\n');  // clean end of transmission
+  delay(100);
+}
+
+// --- RTTY TX ---
+void rtty_txstring(const char *string) {
+  while (*string) {
+    rtty_txbyte(*string++);
   }
 }
 
-// -----------------------------
-// Functions
-// -----------------------------
-void sendRTTY(String msg) {
-  for (int i = 0; i < msg.length(); i++) {
-    sendByte(msg[i]);
-  }
-  sendByte('\n'); // end of sentence
-}
+void rtty_txbyte(char c) {
+  // Start bit
+  rtty_txbit(0);
 
-// --- RTTY transmit one character with LED trill feedback ---
-void sendByte(char c) {
-  // Start bit (always LOW)
-  digitalWrite(RTTY_PIN, LOW);
-  delay(BIT_PERIOD);
-
-  // Data bits (7-bit ASCII, LSB first)
+  // Data bits, LSB first
   for (int i = 0; i < 7; i++) {
-    digitalWrite(RTTY_PIN, (c & (1 << i)) ? HIGH : LOW);
-    delay(BIT_PERIOD);
+    rtty_txbit(c & 1);
+    c >>= 1;
   }
 
-  // Stop bits (2 stop bits HIGH)
-  digitalWrite(RTTY_PIN, HIGH);
-  delay(BIT_PERIOD * 2);
-
-  // LED "trill" pulse per character
-  digitalWrite(LED_RTTY, HIGH);
-  delay(20);              // short visible blink
-  digitalWrite(LED_RTTY, LOW);
+  // Stop bits (2)
+  rtty_txbit(1);
+  rtty_txbit(1);
 }
 
-
-uint16_t crc16(const char *s) {
-  uint16_t crc = 0xFFFF;
-  while (*s) {
-    crc ^= *s++ << 8;
-    for (int i = 0; i < 8; i++) {
-      if (crc & 0x8000)
-        crc = (crc << 1) ^ 0x1021;
-      else
-        crc <<= 1;
-    }
-  }
-  return crc;
+void rtty_txbit(int bit) {
+  digitalWrite(RTTY_PIN, bit);
+  digitalWrite(RTTY_LED, bit ? LOW : HIGH);  // LED flashes with bit timing
+  delayMicroseconds(20000);  // ~50 baud
 }
 
+// --- HIGH-ALTITUDE GPS PATCH ---
 void sendGPSAirborneMode() {
-  // UBX command for airborne <1g mode
-  byte setNavMode[] = {
+  const uint8_t cfgNav5[] = {
     0xB5, 0x62, 0x06, 0x24, 0x24, 0x00,
-    0xFF, 0xFF, 0x06, 0x03, 0x00, 0x00,
-    0x00, 0x10, 0x27, 0x00, 0x00, 0x05,
-    0x00, 0xFA, 0x00, 0xFA, 0x00, 0x64,
-    0x00, 0x2C, 0x01, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF,
+    0x06,
+    0x03,
+    0x00, 0x00, 0x00, 0x10, 0x27, 0x00, 0x00, 0x05,
+    0x00, 0xFA, 0x00, 0xFA, 0x00, 0x64, 0x00, 0x2C,
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00,
     0x16, 0xDC
   };
 
-  for (int i = 0; i < sizeof(setNavMode); i++) {
-    Serial1.write(setNavMode[i]);
+  while (Serial1.available()) (void)Serial1.read();
+  for (size_t i = 0; i < sizeof(cfgNav5); i++) {
+    Serial1.write((uint8_t)cfgNav5[i]);
   }
+  delay(100);
 }
-
