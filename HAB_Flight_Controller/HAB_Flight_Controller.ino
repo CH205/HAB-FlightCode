@@ -166,7 +166,7 @@ void loop() {
     logfile.print(gps.satellites.value());
     logfile.print(",");
     logfile.print(eventStr);
-    logfile.print(",");//replased line
+    logfile.println(",");//replaced line
     //logfile.println(checksum, HEX);
 
     logfile.flush();
