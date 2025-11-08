@@ -1,32 +1,32 @@
 # HAB-FlightCode
 
-Arduino-based flight software for a High Altitude Balloon (HAB) project.  
-The system gathers sensor data, transmits telemetry over RTTY, and logs information to an SD card for post-flight analysis.  
+This repository contains the Arduino-based flight controller code for a high-altitude balloon (HAB) project.
 
-## ✈️ Features
-- GPS telemetry with u-blox MAX-M10S in high-altitude flight mode.  
-- RTTY transmission (dl-fldigi compatible, UKHAS standard).  
-- Environmental data logging:
-  - BMP180 (pressure/altitude/temperature).  
-  - DS18B20 (external temperature).  
-- MOSFET control for onboard systems (auto ON/OFF above threshold altitude).  
-- LED indicators for GPS fix and RTTY transmission.  
-- SD card logging (independent from RTTY).  
+## Overview
+The main sketch is `HAB_DeskTest_v1.0.ino. This integrates:
+- GPS (u-blox MAX-M10S) via hardware serial with high-altitude flight mode  
+- Environmental sensors: BMP180 (pressure) and DS18B20 (temperature)  
+- RTTY telemetry transmission on pin D9  
+- Logic-level MOSFET for altitude-based payload control  
+- SD card logging to `DATA00.CSV`  
+- External 5V indicator LEDs for GPS fix and RTTY activity  
 
-## 🛠️ Hardware
-- Arduino Uno R4 Minima  
-- u-blox MAX-M10S GPS (via Uptronics breakout board)
-- Radiometrix NTX2B-FA 434.300 Mz  
+This version represents the stable Desk Test Release (v1.0) — suitable for integration testing and further expansion.
+
+## Hardware
+- Arduino UNO R4 Minima  
+- u-blox MAX-M10S GPS (Uptronics breakout)  
 - BMP180 pressure sensor  
-- DS18B20 external temperature sensor  
-- SD card module (logging to `DATA00.CSV`)  
-- MOSFET (altitude-triggered payload control)  
-- External indicator LEDs:
-  - GPS fix LED (blinks until fix, solid when locked).  
-  - RTTY LED (flashes with each RTTY transmission).  
+- DS18B20 temperature sensor  
+- SD card module (SPI)  
+- Logic-level MOSFET for altitude-triggered payload control  
+- Pololu S9V11F5 5V Step-Up/Down Voltage Regulator  
+- External indicator LEDs:  
+  - GPS Fix LED: blinks until GPS lock, solid ON when locked  
+  - RTTY LED: flashes with each RTTY transmission  
 
-## 📡 Telemetry
-- RTTY: 50 baud, 7N2 (dl-fldigi compatible).  
+##  Telemetry
+- RTTY: 50 baud, 7N2 (dl-fldigi compatible)  
 - Example transmission string (UKHAS format with checksum):
  -   $$HAB1,31,-41,54.000000,-1.000000,8,MOS_ON*5E
 
