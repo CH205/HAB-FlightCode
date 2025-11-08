@@ -28,5 +28,4 @@ This version represents the stable Desk Test Release (v1.0) — suitable for int
 ##  Telemetry
 - RTTY: 50 baud, 7N2 (dl-fldigi compatible)  
 - Example transmission string (UKHAS format with checksum):
- -   $$HAB1,31,-41,54.000000,-1.000000,8,MOS_ON*5E
-
+ -   $$HAB1,567,65.2,23.1,23.5,1005.4,54.000000,-1.000000,12,MosOFF*6B
