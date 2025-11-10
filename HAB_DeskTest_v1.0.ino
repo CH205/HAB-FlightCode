@@ -1,19 +1,20 @@
 
-   HAB_DeskTest_v1.0.ino
+ /* ============================================================
+   HAB_DeskTest_v1.2.ino
    ------------------------------------------------------------
-   High Altitude Balloon – Desk Test Build
+   High Altitude Balloon – Desk Test Build (MOSFET ascent-only)
    TRANSMITS: RTTY (7N2, 50 baud, stable timing)
    LOGS: SD card (auto recovery)
    READS: GPS (airborne mode patch), BMP180, DS18B20
-   CONTROLS: MOSFET trigger (altitude threshold)
+   CONTROLS: Logic-level MOSFET (ascent-only ON/OFF)
    INDICATORS: GPS fix LED + RTTY LED
    FEATURES:
    - GPS watchdog to suppress stale/ghost data
    - Auto SD reinit
    - Compact serial status output
-   - 100 m trigger threshold (for bench testing)
+   - 100 m MOSFET ON / 120 m MOSFET OFF thresholds (bench-test)
    ------------------------------------------------------------
-   This code was developed in collaboration with ChatGPT (GPT-5, OpenAI)
+   Developed in collaboration with ChatGPT (GPT-5, OpenAI)
    ============================================================ */
 
 #include <Wire.h>
@@ -43,8 +44,21 @@ TinyGPSPlus gps;
 
 // ==================== GLOBALS ====================
 unsigned long sentenceCounter = 0;
-const float ALT_THRESHOLD = 100.0;  // altitude threshold for MOSFET
 bool sdAvailable = false;
+
+// ============================================================
+// ALTITUDE THRESHOLDS (bench test defaults)
+// ============================================================
+// These define the lower and upper altitude limits for the
+// aspirator pump control (via logic-level MOSFET).
+// - The pump will start ONCE when ascending above ALT_ON_THRESHOLD.
+// - It will stay ON during ascent.
+// - It will turn OFF permanently when altitude >= ALT_OFF_THRESHOLD.
+const float ALT_ON_THRESHOLD  = 100.0;   // metres – turn ON pump
+const float ALT_OFF_THRESHOLD = 180.0;   // metres – final OFF
+bool mosfetState = false;                // Current MOSFET output state
+static bool pumpCycleComplete = false;   // Locks out reactivation
+// ============================================================
 
 // ==================== GPS AIRBORNE MODE PATCH ====================
 void sendGPSAirborneMode() {
@@ -159,13 +173,33 @@ void loop() {
   float tempC2 = sensors.getTempCByIndex(0);
   float alt_m = bmp.readAltitude();
 
-  bool mosfetOn = false;
-  if (alt_m > ALT_THRESHOLD) {
-    digitalWrite(MOS_PIN, HIGH);
-    mosfetOn = true;
-  } else {
-    digitalWrite(MOS_PIN, LOW);
+  // === UPDATED: MOSFET / ASPIRATOR CONTROL LOGIC ===
+  // -------------------------------------------------
+  // This block replaces the old symmetrical ON/OFF logic.
+  // It ensures:
+  //   1. Pump turns ON once when ascending past lower threshold.
+  //   2. Pump remains ON during ascent.
+  //   3. Pump turns OFF permanently at high altitude.
+  //   4. Pump never reactivates during descent.
+  if (!pumpCycleComplete) {
+    // Turn ON once during ascent
+    if (!mosfetState && alt_m >= ALT_ON_THRESHOLD) {
+      digitalWrite(MOS_PIN, HIGH);
+      mosfetState = true;
+      Serial.println("MOSFET triggered ON (ascent)");
+      logToSD("MOSFET ON (ascent)\r\n");
+    }
+
+    // Final OFF at burst altitude
+    else if (mosfetState && alt_m >= ALT_OFF_THRESHOLD) {
+      digitalWrite(MOS_PIN, LOW);
+      mosfetState = false;
+      pumpCycleComplete = true; // prevents any reactivation
+      Serial.println("MOSFET triggered OFF (final cutoff)");
+      logToSD("MOSFET OFF (final cutoff)\r\n");
+    }
   }
+  // === END UPDATED LOGIC ===
 
   // Build telemetry sentence
   char sentence[120];
@@ -179,7 +213,7 @@ void loop() {
            gpsLost ? 0.0 : gps.location.lat(),
            gpsLost ? 0.0 : gps.location.lng(),
            gpsLost ? 0 : gps.satellites.value(),
-           mosfetOn ? "MosON" : "MosOFF");
+           mosfetState ? "MosON" : "MosOFF");
 
   uint8_t checksum = 0;
   for (uint8_t i = 2; i < strlen(sentence); i++) checksum ^= sentence[i];
@@ -203,8 +237,8 @@ void loop() {
   // Serial status summary
   Serial.print("Count: "); Serial.print(sentenceCounter);
   Serial.print(" | GPS: "); Serial.print(gpsLost ? "LOST" : "OK");
-  Serial.print(" | SD: "); Serial.print(sdAvailable ? "OK" : "FAIL");
-  Serial.print(" | MOSFET: "); Serial.println(mosfetOn ? "ON" : "OFF");
+  Serial.print(" | SD: "); Serial.println(sdAvailable ? "OK" : "FAIL");
+  //Serial.print(" | MOSFET: "); Serial.println(mosfetState ? "ON" : "OFF");
 
   sentenceCounter++;
   delay(1000);
