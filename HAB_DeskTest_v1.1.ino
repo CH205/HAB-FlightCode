@@ -1,6 +1,6 @@
 
  /* ============================================================
-   HAB_DeskTest_v1.2.ino
+   HAB_DeskTest_v1.1.ino
    ------------------------------------------------------------
    High Altitude Balloon – Desk Test Build (MOSFET ascent-only)
    TRANSMITS: RTTY (7N2, 50 baud, stable timing)
