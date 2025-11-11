@@ -1,4 +1,20 @@
 # HAB-FlightCode
+## Version History
+
+### v1.2 — Current Release (November 2025)
+- Increased telemetry buffer size to 200 characters for greater message stability.
+- Maintains full functionality of v1.1, including:
+  - Reliable GPS, BMP180, and DS18B20 sensor data logging.
+  - SD card logging to `DATA00.CSV`.
+  - RTTY transmission with indicator LED (D3).
+  - GPS fix indicator LED (D5).
+  - Solenoid control above defined altitude threshold.
+- Verified transmission clarity via dl-fldigi.
+
+### v1.1 — Stable Foundation (August 2025)
+- Integrated full flight control logic with environmental sensors, GPS, SD logging, RTTY, and solenoid.
+- First publicly stable version, serving as the baseline for future development.
+
 
 This repository contains the Arduino-based flight controller code for a high-altitude balloon (HAB) project.
 
