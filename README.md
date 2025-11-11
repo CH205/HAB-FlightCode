@@ -1,5 +1,52 @@
 # HAB-FlightCode
-## Version History
+
+**High Altitude Balloon Flight Controller**
+
+This Arduino-based project is designed to control and monitor a high-altitude balloon payload.  
+It integrates sensor logging, RTTY telemetry transmission, GPS tracking, and automated solenoid control — all with robust error handling and visual status indicators.
+
+---
+
+## ✈️ Overview
+
+The flight controller coordinates the following systems:
+
+- **GPS (u-blox MAX-M10S)** for position, altitude, and time data.  
+- **BMP180** barometric pressure sensor for altitude estimation.  
+- **DS18B20** digital thermometer for temperature readings.  
+- **SD card logging** for complete data recording.  
+- **RTTY telemetry transmitter** for real-time downlink to ground station.  
+- **MOSFET -  for altitude-triggered payload.  
+- **LED indicators** for:
+  - GPS fix status (blinking until fix, solid when locked).  
+  - RTTY transmission activity (flashes on each pulse).  
+
+---
+
+## ⚙️ Hardware
+
+- **Microcontroller:** Arduino Uno R4 Minima  
+- **GPS Module:** u-blox MAX-M10S (Uptronics breakout)  
+- **Sensors:** BMP180, DS18B20  
+- **Storage:** SD card module  
+- **Indicators:** 5V LEDs on D3 (RTTY) and D5 (GPS fix)
+- Pololu S9V11F5 5V Step-Up/Down Voltage Regulator  
+- MOSFET on configured output pin  
+- **RTTY Output:** Pin D9  
+
+---
+
+## 🛰️ Features
+
+- Full telemetry transmission decoded in **dl-fldigi**.  
+- SD logging independent of RTTY operation.  
+- Altitude-based MOSFET-activated device with event logging.  
+- Modular and robust code structure for flight reliability.  
+- Easily expandable for future enhancements.  
+
+---
+
+## 🧾 Version History
 
 ### v1.2 — Current Release (November 2025)
 - Increased telemetry buffer size to 200 characters for greater message stability.
@@ -8,40 +55,23 @@
   - SD card logging to `DATA00.CSV`.
   - RTTY transmission with indicator LED (D3).
   - GPS fix indicator LED (D5).
-  - Solenoid control above defined altitude threshold.
+  - Device control above-defined-altitude threshold.
 - Verified transmission clarity via dl-fldigi.
 
 ### v1.1 — Stable Foundation (August 2025)
 - Integrated full flight control logic with environmental sensors, GPS, SD logging, RTTY, and solenoid.
 - First publicly stable version, serving as the baseline for future development.
 
+---
 
-This repository contains the Arduino-based flight controller code for a high-altitude balloon (HAB) project.
+## 🤝 Acknowledgments
 
-## Overview
-The main sketch is `HAB_DeskTest_v1.0.ino. This integrates:
-- GPS (u-blox MAX-M10S) via hardware serial with high-altitude flight mode  
-- Environmental sensors: BMP180 (pressure) and DS18B20 (temperature)  
-- RTTY telemetry transmission on pin D9  
-- Logic-level MOSFET for altitude-based payload control  
-- SD card logging to `DATA00.CSV`  
-- External 5V indicator LEDs for GPS fix and RTTY activity  
+Developed with support and guidance from **ChatGPT (OpenAI)** —  
+assisting in design, debugging, and documentation.
 
-This version represents the stable Desk Test Release (v1.0) — suitable for integration testing and further expansion.
+---
 
-## Hardware
-- Arduino UNO R4 Minima  
-- u-blox MAX-M10S GPS (Uptronics breakout)  
-- BMP180 pressure sensor  
-- DS18B20 temperature sensor  
-- SD card module (SPI)  
-- Logic-level MOSFET for altitude-triggered payload control  
-- Pololu S9V11F5 5V Step-Up/Down Voltage Regulator  
-- External indicator LEDs:  
-  - GPS Fix LED: blinks until GPS lock, solid ON when locked  
-  - RTTY LED: flashes with each RTTY transmission  
+## 📜 License
 
-##  Telemetry
-- RTTY: 50 baud, 7N2 (dl-fldigi compatible)  
-- Example transmission string (UKHAS format with checksum):
- -   $$HAB1,567,65.2,23.1,23.5,1005.4,54.000000,-1.000000,12,MosOFF*6B
+This project is open-source and free to use for educational and non-commercial applications.  
+Attribution is appreciated if you use or adapt the code.
